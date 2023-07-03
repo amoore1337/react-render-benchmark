@@ -2,7 +2,7 @@ import { type FC } from "react";
 
 export interface TestComponentConfig<TProps, TArgs> {
   Component: FC<TProps>;
-  createProps?: (args: Partial<TArgs>) => Promise<TProps>;
+  createProps?: (args: Partial<TArgs>) => TProps;
   updateProps?: (currentProps: TProps) => TProps;
   Settings?: FC<{ [key: string]: string }>;
 }

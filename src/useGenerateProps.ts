@@ -6,19 +6,14 @@ export function useGenerateProps<TProps, TArgs>(
   updateProps: TestComponentConfig<TProps, TArgs>["updateProps"]
 ) {
   const [props, setProps] = React.useState<TProps>();
-  const [loading, setLoading] = React.useState(false);
 
   const nonReactiveProps = React.useRef<TProps | undefined>(props);
 
   const buildComponentProps = React.useCallback(
-    async (args: Partial<TArgs>) => {
-      // (async () => {
-      // })();
-      setLoading(true);
-      const result = await createProps?.(args);
+    (args: Partial<TArgs>) => {
+      const result = createProps?.(args);
       nonReactiveProps.current = result;
       setProps(result);
-      setLoading(false);
     },
     [createProps]
   );
@@ -35,5 +30,5 @@ export function useGenerateProps<TProps, TArgs>(
     buildComponentProps({});
   }, [buildComponentProps]);
 
-  return { props, loading, buildComponentProps, updateComponentProps };
+  return { props, buildComponentProps, updateComponentProps };
 }

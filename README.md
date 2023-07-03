@@ -27,9 +27,5 @@ $ npm run build && npm run preview
 'Re-Render': Measure the time taken to apply prop updates to the already rendered component.
 ```
 
-5. Click `Run` or `Begin Benchmark`:
-
-```
-'Run': Execute a single test of the selected type.
-'Begin Benchmark': Execute a series test runs to obtain a more accurate average of render timings. The number of test runs can be configured in the Settings modal in the top right.
-```
+5. Click `Begin Benchmark`. This will execute a series test runs to an average of render timings. The number of test runs can be configured in the Settings modal in the top right.
+   > **Note**: A series of 'warmup' runs will occur before the actual benchmark. This is to help reduce _cold start_ impacts.

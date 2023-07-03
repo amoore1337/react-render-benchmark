@@ -9,6 +9,8 @@ import { renderCompleteEvent, type BaseTestSettings } from "./utils";
 type Settings = Parameters<NonNullable<typeof testConfig.createProps>>[0] &
   BaseTestSettings;
 
+const warmupCount = 5 as const;
+
 function App() {
   const [settings, setSettings] = React.useState<Settings>({
     testRunCount: "10",
@@ -17,40 +19,40 @@ function App() {
   const [testType, setTestType] = React.useState<"initial" | "rerender">(
     "initial"
   );
-  const [runRender, setRunRender] = React.useState(false);
+  const [renderComponent, setRenderComponent] = React.useState(false);
 
-  const { props, loading, buildComponentProps, updateComponentProps } =
-    useGenerateProps(testConfig.createProps, testConfig.updateProps);
+  const { props, buildComponentProps, updateComponentProps } = useGenerateProps(
+    testConfig.createProps,
+    testConfig.updateProps
+  );
 
-  const testRun = React.useRef<{
+  const benchmarkRun = React.useRef<{
     active: boolean;
     count: number;
     log: number[];
   }>({ active: false, count: 0, log: [] });
 
-  const rerender = React.useRef<{
+  const rerenderRun = React.useRef<{
     rendered: boolean;
     updated: boolean;
   }>({ rendered: false, updated: false });
 
   const handleStartReRender = React.useCallback(() => {
-    if (!rerender.current.rendered) {
-      rerender.current = { rendered: true, updated: false };
-      setRunRender(true);
-    } else if (!rerender.current.updated) {
+    if (!rerenderRun.current.rendered) {
+      rerenderRun.current = { rendered: true, updated: false };
+      setRenderComponent(true);
+    } else if (!rerenderRun.current.updated) {
       updateComponentProps();
       measureRender.clear();
       measureRender.start();
-      rerender.current.updated = true;
+      rerenderRun.current.updated = true;
     }
   }, [updateComponentProps]);
 
   const handleStartRender = React.useCallback(() => {
-    (async () => {
-      await buildComponentProps(settings);
-      setRunRender(true);
-      measureRender.start();
-    })();
+    buildComponentProps(settings);
+    setRenderComponent(true);
+    measureRender.start();
   }, [buildComponentProps, settings]);
 
   const handleRun = React.useCallback(() => {
@@ -62,11 +64,12 @@ function App() {
   }, [handleStartReRender, handleStartRender, testType]);
 
   const handleReset = React.useCallback(() => {
-    setRunRender(false);
-    rerender.current = { rendered: false, updated: false };
-    testRun.current = { active: false, count: 0, log: [] };
+    setRenderComponent(false);
+    rerenderRun.current = { rendered: false, updated: false };
+    benchmarkRun.current = { active: false, count: 0, log: [] };
     measureRender.clear();
     clearResults();
+    actionButtonsDisabled(false);
   }, []);
 
   const saveRenderSettings = React.useCallback(
@@ -79,31 +82,31 @@ function App() {
   );
 
   const handleTestRunStep = React.useCallback(() => {
-    if (testRun.current.active) {
+    if (benchmarkRun.current.active) {
       const { duration } = measureRender.getEllapsedTime();
-      testRun.current.log.push(duration);
-      testRun.current.count++;
-      const maxTestRuns = parseInt(settings.testRunCount, 10);
-      displayTestRun(testRun.current.log, maxTestRuns);
-      if (testRun.current.count < maxTestRuns) {
+      benchmarkRun.current.log.push(duration);
+      benchmarkRun.current.count++;
+      const maxTestRuns = parseInt(settings.testRunCount, 10) + warmupCount;
+      displayBenchmarkResult(benchmarkRun.current.log, maxTestRuns);
+      if (benchmarkRun.current.count < maxTestRuns) {
         if (testType === "initial") {
-          setRunRender(false);
-          rerender.current = { rendered: false, updated: false };
+          setRenderComponent(false);
+          rerenderRun.current = { rendered: false, updated: false };
         } else {
-          rerender.current = { rendered: true, updated: false };
+          rerenderRun.current = { rendered: true, updated: false };
         }
         setTimeout(() => handleRun(), 500);
       } else {
-        testRun.current.active = false;
+        benchmarkRun.current.active = false;
       }
     }
   }, [settings.testRunCount, testType, handleRun]);
 
   const handleMeasureDone = React.useCallback(() => {
-    if (rerender.current.rendered) {
-      rerender.current.updated = true;
+    if (rerenderRun.current.rendered) {
+      rerenderRun.current.updated = true;
     }
-    if (testRun.current.active) {
+    if (benchmarkRun.current.active) {
       handleTestRunStep();
     } else {
       displayResults();
@@ -113,8 +116,8 @@ function App() {
   const handleRenderDone = React.useCallback(() => {
     if (
       testType === "rerender" &&
-      rerender.current.rendered &&
-      !rerender.current.updated
+      rerenderRun.current.rendered &&
+      !rerenderRun.current.updated
     ) {
       handleStartReRender();
     }
@@ -134,9 +137,10 @@ function App() {
       document.removeEventListener(renderCompleteEvent, handleRenderDone);
   }, [handleRenderDone]);
 
-  const handleStartTestRun = React.useCallback(() => {
-    testRun.current = { active: true, count: 0, log: [] };
-    if (testRun.current.count < parseInt(settings.testRunCount, 10)) {
+  const handleStartBenchmark = React.useCallback(() => {
+    actionButtonsDisabled(true);
+    benchmarkRun.current = { active: true, count: 0, log: [] };
+    if (benchmarkRun.current.count < parseInt(settings.testRunCount, 10)) {
       handleRun();
     }
   }, [settings.testRunCount, handleRun]);
@@ -154,7 +158,7 @@ function App() {
           />
         </div>
         <div className="flex w-full flex-shrink-0 items-center justify-between px-6 py-8 text-gray-800">
-          <div className="flex items-center">
+          <div className="testActions flex items-center">
             {testConfig.updateProps && (
               <button
                 className={clsx(
@@ -169,34 +173,23 @@ function App() {
                 onClick={() =>
                   setTestType((t) => (t === "initial" ? "rerender" : "initial"))
                 }
-                disabled={loading || runRender}
               >
-                {loading
-                  ? "Loading..."
-                  : `Test Type: ${
-                      testType === "initial" ? "Initial Render" : "Re-Render"
-                    }`}
+                {`Test Type: ${
+                  testType === "initial" ? "Initial Render" : "Re-Render"
+                }`}
               </button>
             )}
             <button
-              className="rounded border border-gray-800 p-2 hover:bg-gray-200 disabled:border-gray-300 disabled:bg-gray-100 disabled:text-gray-400"
-              onClick={handleRun}
-              disabled={loading || runRender}
-            >
-              {loading ? "Loading..." : "Run"}
-            </button>
-            <button
               className=" ml-4 rounded border border-gray-800 p-2 hover:bg-gray-200 disabled:border-gray-300 disabled:bg-gray-100 disabled:text-gray-400"
-              onClick={handleStartTestRun}
-              disabled={loading || runRender}
+              onClick={handleStartBenchmark}
             >
-              {loading ? "Loading..." : "Begin Benchmark"}
+              Begin Benchmark
             </button>
             <div className="px-6">
               <div id="result-display" />
             </div>
           </div>
-          {runRender && (
+          {renderComponent && (
             <button
               className="rounded border border-gray-800 p-2 hover:bg-gray-200"
               onClick={() => handleReset()}
@@ -206,9 +199,7 @@ function App() {
           )}
         </div>
         <div className="flex-1 overflow-auto">
-          {runRender && !loading && props && (
-            <testConfig.Component {...props} />
-          )}
+          {renderComponent && props && <testConfig.Component {...props} />}
         </div>
       </div>
     </>
@@ -225,20 +216,42 @@ function displayResults() {
   }
 }
 
-function displayTestRun(log: number[], maxRuns: number) {
+function displayBenchmarkResult(log: number[], maxRuns: number) {
   const displayTarget = document.getElementById("result-display");
   const numOfRuns = log.length;
-  const lastRun = Math.round(log[numOfRuns - 1]);
   if (displayTarget) {
-    const avg = Math.floor(log.reduce((sum, v) => sum + v, 0) / numOfRuns);
+    if (numOfRuns < warmupCount) {
+      displayTarget.innerHTML = "Warming up...";
+      return;
+    }
+    const lastRun = Math.round(log[numOfRuns - 1]);
+    const adjustedLogs = log.slice(warmupCount);
+    const adjustedMaxRuns = maxRuns - warmupCount;
+    const adjustedNumOfRuns = numOfRuns - warmupCount;
+    if (adjustedNumOfRuns < 1) {
+      return;
+    }
+    const avg = Math.floor(
+      adjustedLogs.reduce((sum, v) => sum + v, 0) / adjustedNumOfRuns
+    );
 
     displayTarget.innerHTML = `
-      Render ${numOfRuns} of ${maxRuns}: <span class="font-bold">${lastRun}ms</span> 
+      Render ${adjustedNumOfRuns} of ${adjustedMaxRuns}: <span class="font-bold">${lastRun}ms</span> 
       Avg: <span class="font-bold">${avg}ms</span> 
-      Min: <span class="font-bold">${Math.round(Math.min(...log))}ms</span> 
-      Max: <span class="font-bold">${Math.round(Math.max(...log))}ms</span> 
+      Min: <span class="font-bold">${Math.round(
+        Math.min(...adjustedLogs)
+      )}ms</span> 
+      Max: <span class="font-bold">${Math.round(
+        Math.max(...adjustedLogs)
+      )}ms</span> 
     `;
   }
+}
+
+function actionButtonsDisabled(disabled: boolean) {
+  document.querySelectorAll(".testActions button").forEach((btn) => {
+    (btn as HTMLButtonElement).disabled = disabled;
+  });
 }
 
 function clearResults() {

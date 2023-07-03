@@ -1,10 +1,10 @@
 import { randomNumber } from "../../utils";
 import { type BuildArgs, type Props } from "./types";
 
-export async function createProps({
+export function createProps({
   numRows = "1000",
   numColumns = "50",
-}: Partial<BuildArgs>): Promise<Props> {
+}: Partial<BuildArgs>): Props {
   const columns = Array.from(Array(parseInt(numColumns, 10)).keys());
 
   const data = Array.from(Array(parseInt(numRows, 10))).map((_, index) => {

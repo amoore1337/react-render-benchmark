@@ -1,6 +1,8 @@
-# React Render Benchmark
+# [POC] React Render Benchmark
 
 A framework for deeply measuring the render performance of a component.
+
+> **NOTE:** To be really useful, this would need to be an installable module that could live alongside an existing codebase. Similar to Storybook, but for performance measuring. This project exists for some quick experimentation and prove out the utility.
 
 ## Setup Steps
 
